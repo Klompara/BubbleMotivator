@@ -3,14 +3,13 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
-#include <Stepper.h>
 #include "config.h" // wlan ssid and password
 
 ESP8266WebServer server(80);
 
 #define dirPin 2
-#define stepPin 3
-#define stepsPerRevolution 200
+#define stepPin 0
+#define spinSpeed 50
 
 bool spinning = false;
 bool clockwise = true;
@@ -57,6 +56,8 @@ void handleNotFound() {
 void setup(void) {
   pinMode(stepPin, OUTPUT);
   pinMode(dirPin, OUTPUT);
+  digitalWrite(stepPin, LOW); // Currently no stepper motor movement
+  digitalWrite(dirPin, LOW);  
   
   Serial.begin(9600);
   WiFi.mode(WIFI_STA);
@@ -87,11 +88,11 @@ void loop(void) {
   server.handleClient();
   if(spinning) {
     digitalWrite(dirPin, clockwise ? HIGH : LOW);
-    for (int i = 0; i < stepsPerRevolution; i++) {
+    for (int i = 0; i < spinSpeed; i++) {
       digitalWrite(stepPin, HIGH);
-      delayMicroseconds(2000);
+      delay(10);
       digitalWrite(stepPin, LOW);
-      delayMicroseconds(2000);
+      delay(10);
     }
   }
 }
