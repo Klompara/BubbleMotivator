@@ -9,8 +9,9 @@ ESP8266WebServer server(80);
 
 #define dirPin 2
 #define stepPin 0
-#define spinSpeed 50
+#define stepsPerSpin 200
 
+int delayBetweenSteps = 2000;
 bool spinning = false;
 bool clockwise = true;
 
@@ -32,10 +33,37 @@ void rev() {
   server.send(200, "text/plain", clockwise ? "motor spinning clockwise" : "motor spinning counterclockwise");
 }
 
+void setDelay() {
+  String body;
+  
+  if (server.hasArg("plain") == false) {
+    server.send(400, "text/plain", "Body not received");
+    return;
+  }
+
+  body = server.arg("plain");
+
+  bool isnum = true;
+  for(byte i = 0; i < body.length() && isnum; i++) {
+    if(!isDigit(body.charAt(i))) {
+      isnum = false;
+    }
+  }
+
+  if(!isnum) {
+    server.send(400, "text/plain", "Body ist not a digit");
+    return;
+  }
+  
+  delayBetweenSteps = server.arg("plain").toInt();
+  server.send(200, "text/plain", "Changed speed");
+}
+
 void restServerRouting() {
   server.on(F("/start"), HTTP_POST, startSpin);
   server.on(F("/stop"), HTTP_POST, stopSpin);
   server.on(F("/reverse"), HTTP_POST, rev);
+  server.on(F("/setDelay"), HTTP_POST, setDelay);
 }
  
 void handleNotFound() {
@@ -86,13 +114,12 @@ void setup(void) {
  
 void loop(void) {
   server.handleClient();
+
   if(spinning) {
     digitalWrite(dirPin, clockwise ? HIGH : LOW);
-    for (int i = 0; i < spinSpeed; i++) {
-      digitalWrite(stepPin, HIGH);
-      delay(10);
-      digitalWrite(stepPin, LOW);
-      delay(10);
-    }
+    digitalWrite(stepPin, HIGH);
+    delayMicroseconds(delayBetweenSteps);
+    digitalWrite(stepPin, LOW);
+    delayMicroseconds(delayBetweenSteps);
   }
 }
