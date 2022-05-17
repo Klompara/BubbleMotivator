@@ -56,6 +56,9 @@ void setDelay() {
   }
   
   delayBetweenSteps = server.arg("plain").toInt();
+  if(delayBetweenSteps < 400) {
+    delayBetweenSteps = 400; // safety
+  }
   server.send(200, "text/plain", "Changed speed");
 }
 
