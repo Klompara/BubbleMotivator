@@ -30,7 +30,7 @@ void stopSpin() {
 void rev() {
   clockwise = !clockwise;
   Serial.println("Changed spinning direction to " + clockwise ? "clockwise" : "counterclockwise");
-  server.send(200, "text/plain", clockwise ? "motor spinning clockwise" : "motor spinning counterclockwise");
+  server.send(200, "text/plain", !clockwise ? "motor spinning clockwise" : "motor spinning counterclockwise");
 }
 
 void setDelay() {
