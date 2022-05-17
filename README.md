@@ -42,3 +42,15 @@ curl --location --request POST 192.168.178.40/reverse
 motor spinning counterclockwise
 motor spinning clockwise
 ```
+## set spin speed "speed" (delay between stepper signal)
+### Request
+`POST /setDelay/`
+```curl
+curl --location --request POST 192.168.178.40/setDelay -d 2000
+```
+### Response
+```
+Body not received
+Body ist not a digit
+Changed speed
+```
