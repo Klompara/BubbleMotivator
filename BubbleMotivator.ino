@@ -3,26 +3,31 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
+#include <Servo.h>
 #include "config.h" // wlan ssid and password
 
 ESP8266WebServer server(80);
+Servo servo;
 
 #define dirPin 2
 #define stepPin 0
 #define stepsPerSpin 200
 
+const uint8_t servoPin = D2;
 int delayBetweenSteps = 2000;
 bool spinning = false;
 bool clockwise = true;
 
 void startSpin() {
-  spinning = true;
+  spinning = true; //stepper
+  servo.write(15); // servo
   Serial.println("Start Spinning");
   server.send(200, "text/plain", "started");
 }
 
 void stopSpin() {
-  spinning = false;
+  spinning = false;  //stepper
+  servo.write(0); // servo
   Serial.println("Stopped Spinning");
   server.send(200, "text/plain", "stopped");
 }
@@ -61,13 +66,6 @@ void setDelay() {
   }
   server.send(200, "text/plain", "Changed speed");
 }
-
-void restServerRouting() {
-  server.on(F("/start"), HTTP_POST, startSpin);
-  server.on(F("/stop"), HTTP_POST, stopSpin);
-  server.on(F("/reverse"), HTTP_POST, rev);
-  server.on(F("/setDelay"), HTTP_POST, setDelay);
-}
  
 void handleNotFound() {
   String message = "File Not Found\n\n";
@@ -83,14 +81,37 @@ void handleNotFound() {
   }
   server.send(404, "text/plain", message);
 }
- 
-void setup(void) {
+
+void setupStepper() {
   pinMode(stepPin, OUTPUT);
   pinMode(dirPin, OUTPUT);
   digitalWrite(stepPin, LOW); // Currently no stepper motor movement
-  digitalWrite(dirPin, LOW);  
-  
-  Serial.begin(9600);
+  digitalWrite(dirPin, LOW);
+  Serial.println("Stepper initialized");
+}
+
+void setupServo() {
+  servo.attach(servoPin);
+  for(int pos = 0; pos <= 180; pos += 30)
+  {
+    servo.write(pos);
+    Serial.println(pos);
+    delay(15);
+  }
+  delay(2500);
+  for(int pos = 180; pos >= 0; pos -= 30)
+  {
+    servo.write(pos);
+    Serial.println(pos);
+    delay(15);
+  }
+  delay(2500);
+  servo.write(0);
+
+  Serial.println("Servo initialized");
+}
+
+void setupWifi() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   delay(100);
@@ -108,11 +129,25 @@ void setup(void) {
   if (MDNS.begin("esp8266")) {
     Serial.println("MDNS responder started");
   }
-  
-  restServerRouting();
+}
+
+void setupHttpServer() {
+  server.on(F("/start"), HTTP_POST, startSpin);
+  server.on(F("/stop"), HTTP_POST, stopSpin);
+  server.on(F("/reverse"), HTTP_POST, rev);
+  server.on(F("/setDelay"), HTTP_POST, setDelay);
   server.onNotFound(handleNotFound);
   server.begin();
   Serial.println("HTTP server started");
+}
+ 
+void setup(void) {
+  Serial.begin(9600);
+  
+  setupServo();
+  setupStepper();
+  setupWifi();
+  setupHttpServer();
 }
  
 void loop(void) {
