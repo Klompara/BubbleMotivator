@@ -9,60 +9,13 @@ Additionally an a2212/13t 1000kv with an 30A ESC is used to blow the bubbles.
 ![Circuit](https://github.com/Klompara/BubbleMotivator/raw/main/Schematic_ESP8266%20Node%20MCU_2022-05-12.png)
 
 
-# REST API
-The microcontroller connects to a nearby wifi in order to run a http server which can be used to control the bubble machine.
-## start bubbles
-### Request
-`POST /start/`
-```curl
-curl --location --request POST 192.168.178.40/start
+# MQTT
+The microcontroller connects to a nearby wifi in order to connect to a mqtt broker
+## Control-Messages
 ```
-### Response
-```
-started
-```
-## stop bubbles
-### Request
-`POST /stop/`
-```curl
-curl --location --request POST 192.168.178.40/stop
-```
-### Response
-```
-stopped
-```
-## reverse spin direction
-### Request
-`POST /reverse/`
-```curl
-curl --location --request POST 192.168.178.40/reverse
-```
-### Response
-```
-motor spinning counterclockwise
-motor spinning clockwise
-```
-## set spin speed "speed" (delay between stepper signal)
-### Request
-`POST /setDelay/`
-```curl
-curl --location --request POST 192.168.178.40/setDelay -d 2000
-```
-### Response
-```
-Body not received
-Body ist not a digit
-Changed Stepper speed
-```
-## set fan speed (servo motor speed)
-### Request
-`POST /setServoSpeed/`
-```curl
-curl --location --request POST 192.168.178.40/setServoSpeed -d 120
-```
-### Response
-```
-Body not received
-Body ist not a digit
-Changed Servo speed
+start
+stop
+reverse
+setDelay <int default:3000 min:400 slower=faster stepper>
+setServoSpeed <int default:15 min:0 max:180 higher=faster servo>
 ```
