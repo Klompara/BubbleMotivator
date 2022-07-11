@@ -52,5 +52,17 @@ curl --location --request POST 192.168.178.40/setDelay -d 2000
 ```
 Body not received
 Body ist not a digit
-Changed speed
+Changed Stepper speed
+```
+## set fan speed (servo motor speed)
+### Request
+`POST /setServoSpeed/`
+```curl
+curl --location --request POST 192.168.178.40/setServoSpeed -d 120
+```
+### Response
+```
+Body not received
+Body ist not a digit
+Changed Servo speed
 ```
