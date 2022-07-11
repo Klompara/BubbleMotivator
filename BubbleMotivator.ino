@@ -1,54 +1,45 @@
 #include "Arduino.h"
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
-#include <ESP8266WebServer.h>
-#include <ESP8266mDNS.h>
+#include <PubSubClient.h>
 #include <Servo.h>
 #include "config.h" // wlan ssid and password
 
-ESP8266WebServer server(80);
 Servo servo;
 
 #define dirPin 2
 #define stepPin 0
 #define stepsPerSpin 200
 
+const char* MQTT_BROKER = "broker.hivemq.com";
+WiFiClient espClient;
+PubSubClient client(espClient);
+
 const uint8_t servoPin = D2;
 int delayBetweenSteps = 3000;
 int servoSpeed = 15;
 bool spinning = false;
-bool clockwise = true;
+bool clockwise = false;
+char* topic = "this/is/my/bubble/machine/topic";
 
 void startSpin() {
   spinning = true; //stepper
   servo.write(servoSpeed); // servo
   Serial.println("Start Spinning");
-  server.send(200, "text/plain", "started");
 }
 
 void stopSpin() {
   spinning = false;  //stepper
   servo.write(0); // servo
   Serial.println("Stopped Spinning");
-  server.send(200, "text/plain", "stopped");
 }
 
 void rev() {
   clockwise = !clockwise;
-  Serial.println("Changed spinning direction to " + clockwise ? "clockwise" : "counterclockwise");
-  server.send(200, "text/plain", !clockwise ? "motor spinning clockwise" : "motor spinning counterclockwise");
+  Serial.println("Changed spinning direction");
 }
 
-void setDelay() {
-  String body;
-  
-  if (server.hasArg("plain") == false) {
-    server.send(400, "text/plain", "Body not received");
-    return;
-  }
-
-  body = server.arg("plain");
-
+void setDelay(String body) {
   bool isnum = true;
   for(byte i = 0; i < body.length() && isnum; i++) {
     if(!isDigit(body.charAt(i))) {
@@ -57,27 +48,17 @@ void setDelay() {
   }
 
   if(!isnum) {
-    server.send(400, "text/plain", "Body ist not a digit");
     return;
   }
   
-  delayBetweenSteps = server.arg("plain").toInt();
+  delayBetweenSteps = body.toInt();
   if(delayBetweenSteps < 400) {
     delayBetweenSteps = 400; // safety
   }
-  server.send(200, "text/plain", "Changed Stepper speed");
+  Serial.println("Set Stepper speed");
 }
 
-void setServoSpeed() {
-  String body;
-  
-  if (server.hasArg("plain") == false) {
-    server.send(400, "text/plain", "Body not received");
-    return;
-  }
-
-  body = server.arg("plain");
-
+void setServoSpeed(String body) {
   bool isnum = true;
   for(byte i = 0; i < body.length() && isnum; i++) {
     if(!isDigit(body.charAt(i))) {
@@ -86,37 +67,22 @@ void setServoSpeed() {
   }
 
   if(!isnum) {
-    server.send(400, "text/plain", "Body ist not a digit");
     return;
   }
   
-  servoSpeed = server.arg("plain").toInt();
+  servoSpeed = body.toInt();
   if(servoSpeed > 180) {
     servoSpeed = 180;
   }else if(servoSpeed < 0) {
     servoSpeed = 0;
   }
-  server.send(200, "text/plain", "Changed Servo speed");
 
   if(spinning) {
     servo.write(servoSpeed);
   }
+  Serial.println("Set Servo speed");
 }
  
-void handleNotFound() {
-  String message = "File Not Found\n\n";
-  message += "URI: ";
-  message += server.uri();
-  message += "\nMethod: ";
-  message += (server.method() == HTTP_GET) ? "GET" : "POST";
-  message += "\nArguments: ";
-  message += server.args();
-  message += "\n";
-  for (uint8_t i = 0; i < server.args(); i++) {
-    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
-  }
-  server.send(404, "text/plain", message);
-}
 
 void setupStepper() {
   pinMode(stepPin, OUTPUT);
@@ -161,21 +127,32 @@ void setupWifi() {
   Serial.println(ssid);
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-  
-  if (MDNS.begin("esp8266")) {
-    Serial.println("MDNS responder started");
-  }
 }
 
-void setupHttpServer() {
-  server.on(F("/start"), HTTP_POST, startSpin);
-  server.on(F("/stop"), HTTP_POST, stopSpin);
-  server.on(F("/reverse"), HTTP_POST, rev);
-  server.on(F("/setDelay"), HTTP_POST, setDelay);
-  server.on(F("/setServoSpeed"), HTTP_POST, setServoSpeed);
-  server.onNotFound(handleNotFound);
-  server.begin();
-  Serial.println("HTTP server started");
+void callback(char* topic, byte* payload, unsigned int length) {
+    String msg;
+    for (byte i = 0; i < length; i++) {
+        char tmp = char(payload[i]);
+        msg += tmp;
+    }
+
+    if(msg.startsWith("start")) {
+      startSpin();
+    } else if (msg.startsWith("stop")) {
+      stopSpin();
+    } else if (msg.startsWith("reverse")) {
+      rev();
+    } else if (msg.startsWith("setDelay")) {
+      setDelay(msg.substring(msg.indexOf(' ') + 1));
+    } else if (msg.startsWith("setServoSpeed")) {
+      setServoSpeed(msg.substring(msg.indexOf(' ') + 1));
+    }
+    Serial.println(msg);
+}
+
+void setupMessageQueue() {
+  client.setServer(MQTT_BROKER, 1883);
+  client.setCallback(callback);
 }
  
 void setup(void) {
@@ -184,11 +161,16 @@ void setup(void) {
   setupServo();
   setupStepper();
   setupWifi();
-  setupHttpServer();
+  setupMessageQueue();
 }
  
 void loop(void) {
-  server.handleClient();
+  if(!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+  
+  //server.handleClient();
 
   if(spinning) {
     digitalWrite(dirPin, clockwise ? HIGH : LOW);
@@ -196,5 +178,22 @@ void loop(void) {
     delayMicroseconds(delayBetweenSteps);
     digitalWrite(stepPin, LOW);
     delayMicroseconds(delayBetweenSteps);
+  }
+}
+
+void reconnect() {
+  while(!client.connected()) {
+    Serial.println("Reconnecting MQTT...");
+    if(!client.connect("ESP8266ClientBubbleMachine")) {
+      Serial.print("failed, rc=");
+      Serial.println(client.state());
+      Serial.println("retrying in 3 seconds");
+      delay(3000);
+    } else {
+      Serial.print("success, rc=");
+      Serial.println(client.state());
+      client.subscribe(topic);
+      Serial.println("Subscribed to topic");
+    }
   }
 }
