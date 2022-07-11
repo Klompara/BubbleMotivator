@@ -14,13 +14,14 @@ Servo servo;
 #define stepsPerSpin 200
 
 const uint8_t servoPin = D2;
-int delayBetweenSteps = 2000;
+int delayBetweenSteps = 3000;
+int servoSpeed = 15;
 bool spinning = false;
 bool clockwise = true;
 
 void startSpin() {
   spinning = true; //stepper
-  servo.write(15); // servo
+  servo.write(servoSpeed); // servo
   Serial.println("Start Spinning");
   server.send(200, "text/plain", "started");
 }
@@ -64,7 +65,42 @@ void setDelay() {
   if(delayBetweenSteps < 400) {
     delayBetweenSteps = 400; // safety
   }
-  server.send(200, "text/plain", "Changed speed");
+  server.send(200, "text/plain", "Changed Stepper speed");
+}
+
+void setServoSpeed() {
+  String body;
+  
+  if (server.hasArg("plain") == false) {
+    server.send(400, "text/plain", "Body not received");
+    return;
+  }
+
+  body = server.arg("plain");
+
+  bool isnum = true;
+  for(byte i = 0; i < body.length() && isnum; i++) {
+    if(!isDigit(body.charAt(i))) {
+      isnum = false;
+    }
+  }
+
+  if(!isnum) {
+    server.send(400, "text/plain", "Body ist not a digit");
+    return;
+  }
+  
+  servoSpeed = server.arg("plain").toInt();
+  if(servoSpeed > 180) {
+    servoSpeed = 180;
+  }else if(servoSpeed < 0) {
+    servoSpeed = 0;
+  }
+  server.send(200, "text/plain", "Changed Servo speed");
+
+  if(spinning) {
+    servo.write(servoSpeed);
+  }
 }
  
 void handleNotFound() {
@@ -136,6 +172,7 @@ void setupHttpServer() {
   server.on(F("/stop"), HTTP_POST, stopSpin);
   server.on(F("/reverse"), HTTP_POST, rev);
   server.on(F("/setDelay"), HTTP_POST, setDelay);
+  server.on(F("/setServoSpeed"), HTTP_POST, setServoSpeed);
   server.onNotFound(handleNotFound);
   server.begin();
   Serial.println("HTTP server started");
